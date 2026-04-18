@@ -1,13 +1,9 @@
-// server.js — Yocab AI Backend (Google Gemini)
-// Gemini has a free tier — no billing required.
-// Get your key at aistudio.google.com → Get API Key
-
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 
 app.post('/generate', async (req, res) => {
   try {
@@ -23,12 +19,7 @@ app.post('/generate', async (req, res) => {
           if (item.type === 'text') {
             parts.push({ text: item.text });
           } else if (item.type === 'image') {
-            parts.push({
-              inlineData: {
-                mimeType: item.source.media_type,
-                data: item.source.data
-              }
-            });
+            parts.push({ inlineData: { mimeType: item.source.media_type, data: item.source.data } });
           }
         }
       } else {
@@ -41,15 +32,22 @@ app.post('/generate', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 2000,
+          responseMimeType: 'application/json'  // Force Gemini to return pure JSON
+        }
       })
     });
 
     const data = await response.json();
+    console.log('Gemini raw response:', JSON.stringify(data).slice(0, 500));
+
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     res.json({ content: [{ type: 'text', text }] });
 
   } catch (e) {
+    console.error('Server error:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
