@@ -1,37 +1,58 @@
-// server.js — Yocab AI Backend
-// This is a tiny server that sits between your app and the Anthropic API.
-// Your API key lives HERE (on the server), never in your app code.
-// Render.com will run this 24/7 for free.
+// server.js — Yocab AI Backend (Google Gemini)
+// Gemini has a free tier — no billing required.
+// Get your key at aistudio.google.com → Get API Key
 
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
-app.use(cors()); // Allow requests from your GitHub Pages site
+app.use(cors());
 app.use(express.json());
 
 app.post('/generate', async (req, res) => {
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const apiKey = process.env.GEMINI_API_KEY;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+    const messages = req.body.messages || [];
+    const parts = [];
+
+    for (const msg of messages) {
+      if (Array.isArray(msg.content)) {
+        for (const item of msg.content) {
+          if (item.type === 'text') {
+            parts.push({ text: item.text });
+          } else if (item.type === 'image') {
+            parts.push({
+              inlineData: {
+                mimeType: item.source.media_type,
+                data: item.source.data
+              }
+            });
+          }
+        }
+      } else {
+        parts.push({ text: msg.content });
+      }
+    }
+
+    const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY, // Key stored safely as env variable
-        'anthropic-version': '2023-06-01'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 1500,
-        messages: req.body.messages
+        contents: [{ parts }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
       })
     });
+
     const data = await response.json();
-    res.json(data);
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    res.json({ content: [{ type: 'text', text }] });
+
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 app.get('/', (req, res) => res.send('Yocab API running ✓'));
-
 app.listen(process.env.PORT || 3000, () => console.log('Yocab server running'));
