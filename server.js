@@ -16,11 +16,8 @@ app.post('/generate', async (req, res) => {
     for (const msg of messages) {
       if (Array.isArray(msg.content)) {
         for (const item of msg.content) {
-          if (item.type === 'text') {
-            parts.push({ text: item.text });
-          } else if (item.type === 'image') {
-            parts.push({ inlineData: { mimeType: item.source.media_type, data: item.source.data } });
-          }
+          if (item.type === 'text') parts.push({ text: item.text });
+          else if (item.type === 'image') parts.push({ inlineData: { mimeType: item.source.media_type, data: item.source.data } });
         }
       } else {
         parts.push({ text: msg.content });
@@ -32,18 +29,22 @@ app.post('/generate', async (req, res) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2000,
-          responseMimeType: 'application/json'  // Force Gemini to return pure JSON
-        }
+        generationConfig: { temperature: 0.4, maxOutputTokens: 2000 }
       })
     });
 
     const data = await response.json();
-    console.log('Gemini raw response:', JSON.stringify(data).slice(0, 500));
+
+    // Log full response for debugging
+    console.log('Full Gemini response:', JSON.stringify(data));
+
+    if (data.error) {
+      return res.status(400).json({ error: data.error.message });
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    console.log('Extracted text:', text.slice(0, 200));
+
     res.json({ content: [{ type: 'text', text }] });
 
   } catch (e) {
